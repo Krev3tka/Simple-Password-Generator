@@ -1,43 +1,45 @@
 package main
 
 import (
+	"crypto/rand"
 	"encoding/csv"
-	_ "encoding/csv"
 	"fmt"
-	"math/rand"
+	"log"
+	"math/big"
 	"os"
-	_ "os"
-	"time"
 )
 
-func GeneratePassword(length int, characters string) string {
-	var password string
+func GeneratePassword(length int, characters string) (string, error) {
+	var result = make([]byte, length)
 	for i := 0; i < length; i++ {
-		n := rand.Intn(len(characters))
-		password += string(characters[n])
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(characters))))
+		if err != nil {
+			return "", err
+		}
+		result[i] = characters[n.Int64()]
 	}
-	return password
+	return string(result), nil
 }
 
-func PrintPasswords(password_keeper map[string]string) {
+func PrintPasswords(passwordKeeper map[string]string) {
 	fmt.Println("All your passwords:")
 
-	for key, value := range password_keeper {
+	for key, value := range passwordKeeper {
 		fmt.Printf("%s:\t%s\n", key, value)
 	}
 
 }
 
-func WriteData(file *os.File, password_keeper map[string]string, service string, isFirst bool) {
+func WriteData(file *os.File, passwordKeeper map[string]string, service string) {
 	writer := csv.NewWriter(file)
 
-	if isFirst {
-		if err := writer.Write([]string{"Service", "Password"}); err != nil {
-			fmt.Println(err)
-		}
-	}
+	//if isFirst {
+	//	if err := writer.Write([]string{"Service", "Password"}); err != nil {
+	//		fmt.Println(err)
+	//	}
+	//}
 
-	err := writer.Write([]string{service, password_keeper[service]})
+	err := writer.Write([]string{service, passwordKeeper[service]})
 
 	if err != nil {
 		fmt.Println(err)
@@ -47,11 +49,11 @@ func WriteData(file *os.File, password_keeper map[string]string, service string,
 }
 
 func main() {
-	rand.Seed(time.Now().UnixNano())
 
-	var password_keeper = make(map[string]string)
-
-	file, err := os.Create("passwrods.csv")
+	var passwordKeeper = make(map[string]string)
+	characters := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	
+	file, err := os.Create("passwords.csv")
 
 	if err != nil {
 		fmt.Println(err)
@@ -60,12 +62,9 @@ func main() {
 
 	defer file.Close()
 
-	isFirst := true
-
 	for {
 		var length int
 		var service string
-		characters := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 		fmt.Print("Enter service name for which you want to get password: ")
 		fmt.Scan(&service)
@@ -74,8 +73,7 @@ func main() {
 		fmt.Scan(&length)
 
 		if length <= 0 {
-			fmt.Println("Password length must be greater than zero")
-			continue
+			log.Fatal("Error: length of password must be greater than zero!")
 		}
 
 		var digits string
@@ -95,11 +93,11 @@ func main() {
 			characters += "!@#$%^&*()_+-=[]{}|;:',.<>?/"
 		}
 
-		password_keeper[service] = GeneratePassword(length, characters)
+		passwordKeeper[service], err = GeneratePassword(length, characters)
 
-		fmt.Printf("Password to the service %s: %s\n", service, password_keeper[service])
+		fmt.Printf("Password to the service %s: %s\n", service, passwordKeeper[service])
 
-		WriteData(file, password_keeper, service, isFirst)
+		WriteData(file, passwordKeeper, service)
 
 		var fin string
 
@@ -109,10 +107,8 @@ func main() {
 		if fin == "n" {
 			break
 		}
-
-		isFirst = false
 	}
 
-	PrintPasswords(password_keeper)
+	PrintPasswords(passwordKeeper)
 
 }
